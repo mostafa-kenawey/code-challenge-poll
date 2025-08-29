@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import UniqueConstraint
-from sqlmodel import Field, SQLModel, Session, create_engine, select
+from sqlmodel import Field, SQLModel, Session, create_engine, select, func
 
 app = FastAPI()
 
@@ -159,3 +159,26 @@ def track_question_visit(question_id: int, request: Request, session: SessionDep
     session.add(visit)
     session.commit()
     return visit
+
+
+@app.get("/questions/visits")
+def get_questions_visits(session: SessionDep) -> list[dict]:
+    result = session.exec(
+        select(
+            Question.id,
+            Question.text,
+            func.count(QuestionVisit.id).label("visit_count")
+        )
+        .outerjoin(QuestionVisit, Question.id == QuestionVisit.question_id)
+        .group_by(Question.id, Question.text)
+        .order_by(func.count(QuestionVisit.id).desc())
+    ).all()
+    
+    return [
+        {
+            "question_id": row.id,
+            "question_text": row.text,
+            "visit_count": row.visit_count
+        }
+        for row in result
+    ]
