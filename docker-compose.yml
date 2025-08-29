@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./database.db:/app/database.db
+      - poll_data:/app/data
     environment:
       - PYTHONPATH=/app
     networks:

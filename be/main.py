@@ -1,3 +1,4 @@
+import os
 from typing import Annotated, Any, Union
 from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -44,7 +45,7 @@ class QuestionVisit(SQLModel, table=True):
     ip_address: str | None = Field(default=None)
 
 
-sqlite_file_name = "database.db"
+sqlite_file_name = "data/database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}
@@ -63,6 +64,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @app.on_event("startup")
 def on_startup():
+    os.makedirs("data", exist_ok=True)
     create_db_and_tables()
 
 @app.post("/questions/")
