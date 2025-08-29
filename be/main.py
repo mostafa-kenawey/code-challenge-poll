@@ -1,6 +1,8 @@
 from typing import Annotated, Any, Union
+from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel, Session, create_engine, select
 
 app = FastAPI()
@@ -14,13 +16,17 @@ app.add_middleware(
 )
 
 class Question(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("text"),)
+
     id: int | None = Field(default=None, primary_key=True)
     text: str = Field(index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Answer(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     question_id: int = Field(foreign_key="question.id")
     text: str = Field(index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -43,22 +49,32 @@ SessionDep = Annotated[Session, Depends(get_session)]
 def on_startup():
     create_db_and_tables()
 
-@app.post("/question/")
+@app.post("/questions/")
 def create_question(question: Question, session: SessionDep) -> Question:
+    if not question.text or not question.text.strip():
+        raise HTTPException(status_code=422, detail="question text cannot be empty")
+
+    existing_question = session.exec(
+        select(Question).where(Question.text == question.text)
+    ).first()
+    
+    if existing_question:
+        raise HTTPException(status_code=409, detail="question already exists")
+    
     session.add(question)
     session.commit()
     session.refresh(question)
     return question
 
 
-@app.get("/question/")
+@app.get("/questions/")
 def read_questions(
     session: SessionDep,
     offset: int = 0,
     limit: Annotated[int, Query(le=100)] = 100,
 ) -> list[Question]:
-    question = session.exec(select(Question).offset(offset).limit(limit)).all()
-    return [*question]
+    questions = session.exec(select(Question).offset(offset).limit(limit)).all()
+    return [*questions]
 
 
 @app.get("/question/{question_id}")
@@ -69,27 +85,46 @@ def read_question(question_id: int, session: SessionDep) -> Question:
     return question
 
 
-@app.post("/answer/")
+@app.get("/question/{question_id}/answers")
+def read_question_answers(question_id: int, session: SessionDep) -> list[Answer]:
+    question = session.get(Question, question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="question not found")
+    
+    answers = session.exec(
+        select(Answer).where(Answer.question_id == question_id)
+    ).all()
+    return [*answers]
+
+
+@app.post("/answers/")
 def create_answer(answer: Answer, session: SessionDep) -> Answer:
+    question = session.get(Question, answer.question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="question not found")
+    
+    if not answer.text or not answer.text.strip():
+        raise HTTPException(status_code=422, detail="answer text cannot be empty")
+    
+    existing_answer = session.exec(
+        select(Answer).where(
+            (Answer.text == answer.text.strip()) & 
+            (Answer.question_id == answer.question_id)
+        )
+    ).first()
+    
+    if existing_answer:
+        raise HTTPException(status_code=409, detail="answer already exists for this question")
+    
     session.add(answer)
     session.commit()
     session.refresh(answer)
     return answer
 
 
-@app.get("/answer/")
-def read_answers(
-    session: SessionDep,
-    offset: int = 0,
-    limit: Annotated[int, Query(le=100)] = 100,
-) -> list[Answer]:
-    answer = session.exec(select(Answer).offset(offset).limit(limit)).all()
-    return [*answer]
-
-
 @app.get("/answer/{answer_id}")
 def read_answer(answer_id: int, session: SessionDep) -> Answer:
     answer = session.get(Answer, answer_id)
     if not answer:
-        raise HTTPException(status_code=200, detail="answer not found")
+        raise HTTPException(status_code=404, detail="answer not found")
     return answer

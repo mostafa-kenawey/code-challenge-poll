@@ -2,28 +2,40 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
-	const id = get(page).params.id;
-	let answer: Answer[] = [];
+
+	const API_BASE_URL = 'http://localhost:8000';
+	const { question_id } = $page.params;
+	
+	let answers: Answer[] = [];
 	let loading = true;
 	let error = '';
 	let text = '';
 	let message = '';
 
-		async function handleSubmit(event: SubmitEvent) {
+	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
+		message = '';
+
+		const trimmedText = text.trim();
+		if (!trimmedText) {
+			message = 'Answer text cannot be empty';
+			return;
+		}
+
 		try {
-			const response = await fetch('http://localhost:8000/answer', {
+			const response = await fetch(`${API_BASE_URL}/answers/`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ text, question_id: id })
+				body: JSON.stringify({ text, question_id: parseInt(question_id) })
 			});
 			if (response.ok) {
 				message = 'Answer submitted successfully!';
 				text = '';
 			} else {
-				message = 'Failed to submit answer.';
+				const errorData = await response.text();
+				message = `Failed to submit answer: ${errorData}`;
 			}
 		} catch (error) {
 			message = 'Error submitting answer.';
@@ -34,15 +46,14 @@
 		loading = true;
 		error = '';
 		try {
-			const res = await fetch('http://localhost:8000/answer');
+			const res = await fetch(`${API_BASE_URL}/question/${question_id}/answers`);
 			if (res.ok) {
-				const answers: Answer[] = await res.json();
-				answer = answers.filter(ans => ans.question_id === parseInt(id));
+				answers = await res.json();
 			} else {
-				error = 'Failed to load answer.';
+				error = 'Failed to load answers.';
 			}
 		} catch (e) {
-			error = 'Error loading answer.';
+			error = 'Error loading data. Please check your connection.';
 		} finally {
 			loading = false;
 		}
@@ -63,6 +74,9 @@
 	<button type="submit">Submit</button>
 </form>
 
+{#if message}
+	<p>{message}</p>
+{/if}
 
 {#if loading}
 	<p>Loading...</p>
@@ -70,8 +84,8 @@
 	<p>{error}</p>
 {:else}
 	<ul>
-		{#each answer as ans}
-			<li>{ans.text}</li>
+		{#each answers as answer}
+			<li>{answer.text}</li>
 		{/each}
 	</ul>
 {/if}

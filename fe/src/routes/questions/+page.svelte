@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	
+	const API_BASE_URL = 'http://localhost:8000';
+
 	let questions: Question[] = [];
 	let loading = true;
 	let error = '';
@@ -9,8 +12,15 @@
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
 		message = '';
+		
+		const trimmedText = text.trim();
+		if (!trimmedText) {
+			message = 'Question text cannot be empty';
+			return;
+		}
+
 		try {
-			const response = await fetch('http://localhost:8000/question', {
+			const response = await fetch(`${API_BASE_URL}/questions/`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
@@ -21,10 +31,11 @@
 				message = 'Question submitted successfully!';
 				text = '';
 			} else {
-				message = 'Failed to submit question.';
+				const errorData = await response.text();
+				message = `Failed to submit question: ${errorData}`;
 			}
 		} catch (error) {
-			message = 'Error submitting question.';
+			message = 'Error submitting question. Please check your connection.';
 		}
 	}
 
@@ -32,7 +43,7 @@
 		loading = true;
 		error = '';
 		try {
-			const res = await fetch('http://localhost:8000/question');
+			const res = await fetch(`${API_BASE_URL}/questions/`);
 			if (res.ok) {
 				questions = await res.json();
 			} else {
@@ -75,7 +86,7 @@
 	<ul>
 		{#each questions as question}
 			<li>{question.text}</li>
-			<a href="/answers/{question.id}">Show Answers</a>
+			<a href="/questions/{question.id}/answers">Show Answers</a>
 		{/each}
 	</ul>
 {/if}
