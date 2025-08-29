@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Union
 from datetime import datetime
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel, Session, create_engine, select
@@ -27,6 +27,13 @@ class Answer(SQLModel, table=True):
     question_id: int = Field(foreign_key="question.id")
     text: str = Field(index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class QuestionVisit(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    question_id: int = Field(foreign_key="question.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    ip_address: str | None = Field(default=None)
+
 
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -128,3 +135,22 @@ def read_answer(answer_id: int, session: SessionDep) -> Answer:
     if not answer:
         raise HTTPException(status_code=404, detail="answer not found")
     return answer
+
+
+@app.post("/question/{question_id}/visit")
+def track_question_visit(question_id: int, request: Request, session: SessionDep) -> QuestionVisit:
+
+    question = session.get(Question, question_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="question not found")
+    
+    client_ip = request.client.host if request.client else None
+    
+    visit = QuestionVisit(
+        question_id=question_id,
+        ip_address=client_ip
+    )
+    
+    session.add(visit)
+    session.commit()
+    return visit

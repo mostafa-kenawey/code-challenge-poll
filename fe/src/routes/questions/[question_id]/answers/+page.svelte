@@ -42,6 +42,19 @@
 		}
 	}
 
+	async function trackVisit() {
+		try {
+			await fetch(`${API_BASE_URL}/question/${question_id}/visit`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+		} catch (error) {
+			message = 'Failed to track visit.';
+		}
+	}
+
 	async function fetchAnswers() {
 		loading = true;
 		error = '';
@@ -60,6 +73,7 @@
 	}
 	onMount(() => {
 		fetchAnswers();
+		trackVisit();
 	});
 
 	$: if (message === 'Answer submitted successfully!') {
