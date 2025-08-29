@@ -16,6 +16,7 @@ app.add_middleware(
 )
 
 class Question(SQLModel, table=True):
+    __tablename__ = "questions"
     __table_args__ = (UniqueConstraint("text"),)
 
     id: int | None = Field(default=None, primary_key=True)
@@ -23,14 +24,18 @@ class Question(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Answer(SQLModel, table=True):
+    __tablename__ = "answers"
+
     id: int | None = Field(default=None, primary_key=True)
-    question_id: int = Field(foreign_key="question.id")
+    question_id: int = Field(foreign_key="questions.id")
     text: str = Field(index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class QuestionVisit(SQLModel, table=True):
+    __tablename__ = "question_visits"
+
     id: int | None = Field(default=None, primary_key=True)
-    question_id: int = Field(foreign_key="question.id", index=True)
+    question_id: int = Field(foreign_key="questions.id", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     ip_address: str | None = Field(default=None)
 
